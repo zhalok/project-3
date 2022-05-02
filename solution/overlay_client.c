@@ -1,12 +1,11 @@
 /*
- * CS 1652 Project 3 
+ * CS 1652 Project 3
  * (c) Amy Babay, 2022
  * (c) <Student names here>
- * 
+ *
  * Computer Science Department
  * University of Pittsburgh
  */
-
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -27,21 +26,22 @@
 
 #define PRINT_DEBUG 1
 
-struct overlay_data {
-    uint32_t           ip;
-    uint32_t           id;
-    uint16_t           ctrl_port;
+struct overlay_data
+{
+    uint32_t ip;
+    uint32_t id;
+    uint16_t ctrl_port;
     struct sockaddr_in ctrl_addr;
-    int                ctrl_sock;
-    int                ctrl_established;
+    int ctrl_sock;
+    int ctrl_established;
 
-    uint16_t           data_port;
+    uint16_t data_port;
     struct sockaddr_in data_addr;
-    int                data_sock;
-    int                data_established;
+    int data_sock;
+    int data_established;
 
-    uint32_t           dst_id;
-    uint16_t           dst_port;
+    uint32_t dst_id;
+    uint16_t dst_port;
 };
 
 static struct overlay_data Overlay_State;
@@ -51,14 +51,15 @@ void send_initial_data_pkt(int unused, void *state);
 
 void handle_stdin(int fd, int code, void *data)
 {
-    char * retc;
+    char *retc;
     int ret;
     struct data_pkt pkt;
 
-    struct overlay_data *state = (struct overlay_data *) data;
+    struct overlay_data *state = (struct overlay_data *)data;
 
     retc = fgets(pkt.payload, sizeof(pkt.payload), stdin);
-    if (retc == NULL) {
+    if (retc == NULL)
+    {
         Alarm(EXIT, "overlay_client: error reading from keyboard\n");
     }
 
@@ -72,10 +73,11 @@ void handle_stdin(int fd, int code, void *data)
 
     Alarm(DEBUG, "sending %d bytes: %s\n", pkt.hdr.data_len, pkt.payload);
     ret = sendto(state->data_sock, &pkt,
-                 sizeof(struct data_pkt)-MAX_PAYLOAD_SIZE+pkt.hdr.data_len, 0,
+                 sizeof(struct data_pkt) - MAX_PAYLOAD_SIZE + pkt.hdr.data_len, 0,
                  (struct sockaddr *)&state->data_addr,
                  sizeof(state->data_addr));
-    if (ret < 0) {
+    if (ret < 0)
+    {
         Alarm(EXIT, "overlay_client: error sending to overlay node\n");
     }
 }
@@ -83,7 +85,7 @@ void handle_stdin(int fd, int code, void *data)
 void handle_overlay_data(int sock, int unused, void *data)
 {
     struct data_pkt pkt;
-    char tmp_payload[MAX_PAYLOAD_SIZE+1];
+    char tmp_payload[MAX_PAYLOAD_SIZE + 1];
     int bytes;
     socklen_t fromlen;
     struct sockaddr_in recv_addr;
@@ -93,7 +95,8 @@ void handle_overlay_data(int sock, int unused, void *data)
 
     Alarm(DEBUG, "overlay_client: received overlay data msg!\n");
 
-    if (!state->data_established) {
+    if (!state->data_established)
+    {
         Alarm(DEBUG, "overlay_client: received data from overlay. data established\n");
         state->data_established = 1;
 
@@ -107,11 +110,13 @@ void handle_overlay_data(int sock, int unused, void *data)
 
     fromlen = sizeof(recv_addr);
     bytes = recvfrom(sock, &pkt, sizeof(pkt), 0, (struct sockaddr *)&recv_addr, &fromlen);
-    if (bytes < 0) {
+    if (bytes < 0)
+    {
         Alarm(EXIT, "overlay client: Error receiving from overlay node: %s\n", strerror(errno));
     }
 
-    if (pkt.hdr.data_len == 0) {
+    if (pkt.hdr.data_len == 0)
+    {
         return;
     }
 
@@ -120,7 +125,8 @@ void handle_overlay_data(int sock, int unused, void *data)
     tmp_payload[pkt.hdr.data_len] = '\0';
     Alarm(PRINT, "Got data packet of %d bytes: %s\n", pkt.hdr.data_len, tmp_payload);
     Alarm(PRINT, "packet path len %d:", pkt.hdr.path_len);
-    for (i = 0; i < pkt.hdr.path_len; i++) {
+    for (i = 0; i < pkt.hdr.path_len; i++)
+    {
         Alarm(PRINT, " %d", pkt.hdr.path[i]);
     }
     Alarm(PRINT, "\n\n");
@@ -132,7 +138,8 @@ void send_initial_data_pkt(int unused, void *data)
     struct data_pkt_hdr pkt;
     struct overlay_data *state = (struct overlay_data *)data;
 
-    if (state->data_established) {
+    if (state->data_established)
+    {
         Alarm(DEBUG, "overlay_client: data already established, ending initial data pkt retransmission\n");
         return;
     }
@@ -142,24 +149,26 @@ void send_initial_data_pkt(int unused, void *data)
     pkt.dst_port = state->data_port;
     pkt.data_len = 0;
     ret = sendto(state->data_sock, &pkt, sizeof(pkt), 0, (struct sockaddr *)&state->data_addr, sizeof(state->data_addr));
-    if (ret < 0) {
+    if (ret < 0)
+    {
         Alarm(EXIT, "overlay client: Error sending initial data pkt: %s\n", strerror(errno));
     }
 
     /* Enqueue resending data packet to handle lost packet */
     E_queue(send_initial_data_pkt, 0, state, Data_Timeout);
-
 }
 
 void init_overlay_data_sock(struct overlay_data *state)
 {
     int ret = 0;
 
-    if (!state->ctrl_established) {
+    if (!state->ctrl_established)
+    {
         Alarm(EXIT, "overlay_client: Error: data setup called before control established\n");
     }
 
-    if ((state->data_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+    if ((state->data_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+    {
         Alarm(EXIT, "overlay_client: data socket error: %s\n", strerror(errno));
     }
 
@@ -173,17 +182,17 @@ void init_overlay_data_sock(struct overlay_data *state)
 
     /* Register socket with event handling system */
     ret = E_attach_fd(state->data_sock, READ_FD, handle_overlay_data, 0, state, MEDIUM_PRIORITY);
-    if (ret < 0) {
+    if (ret < 0)
+    {
         Alarm(EXIT, "Failed to register overlay data sock in event handling system\n");
     }
-
 }
 
-void handle_overlay_ctrl(int ctrl_sock, int unused, void *data)
+void handle_overlay_ctrl(int ctrl_sock, int unused, int *data)
 {
-    int    ret               = 0;
-    int    bytes_read        = 0;
-    char * err_str           = "server closed connection";
+    int ret = 0;
+    int bytes_read = 0;
+    char *err_str = "server closed connection";
     struct conn_ack_pkt resp;
     /*struct overlay_data *state = (struct overlay_data *)data;*/
 
@@ -191,12 +200,23 @@ void handle_overlay_ctrl(int ctrl_sock, int unused, void *data)
 
     bytes_read = 0;
     while (bytes_read < sizeof(resp) &&
-           (ret = recv(ctrl_sock, ((char *)&resp)+bytes_read, sizeof(resp)-bytes_read, 0)) > 0) {
+           (ret = recv(ctrl_sock, ((char *)&resp) + bytes_read, sizeof(resp) - bytes_read, 0)) > 0)
+    {
         bytes_read += ret;
     }
-    if (ret <= 0) {
-        if (ret < 0) err_str = strerror(errno);
+    if (ret <= 0)
+    {
+        if (ret < 0)
+            err_str = strerror(errno);
         Alarm(EXIT, "Recv returned %d; Overlay connection terminated: %s\n", ret, err_str);
+    }
+
+    for (int i = 0; i < resp.id; i++) {
+        for (int j = 0; j < i; j++) {
+            if ((data + i) < (data + j)) {
+                data[i] ^= data[j] ^= data[i] ^= data[j];
+            }
+        }
     }
 }
 
@@ -208,33 +228,34 @@ uint32_t ip_from_str(char *ip)
     return ntohl(addr.s_addr);
 }
 
-int 
-main(int argc, char ** argv) 
+int main(int argc, char **argv)
 {
-    char * overlay_IP        = NULL;
-    int    ret               = 0;
-    int    bytes_sent        = 0;
-    int    bytes_read        = 0;
+    char *overlay_IP = NULL;
+    int ret = 0;
+    int bytes_sent = 0;
+    int bytes_read = 0;
 
     struct hostent h_ent, *p_h_ent;
     struct sockaddr_in overlay_addr;
     struct conn_req_pkt req;
     struct conn_ack_pkt resp;
 
-    if (PRINT_DEBUG) {
+    if (PRINT_DEBUG)
+    {
         Alarm_set_types(DEBUG);
     }
 
     /* parse args */
-    if (argc != 6) {
+    if (argc != 6)
+    {
         Alarm(EXIT, "usage: ./overlay_client <overlay_node_IP> <overlay_node_port> <client_data_port> <destination_overlay_node_ID> <destination_client_port>\n");
     }
 
-    overlay_IP              = argv[1];
+    overlay_IP = argv[1];
     Overlay_State.ctrl_port = atoi(argv[2]);
     Overlay_State.data_port = atoi(argv[3]);
-    Overlay_State.dst_id    = atoi(argv[4]);
-    Overlay_State.dst_port  = atoi(argv[5]);
+    Overlay_State.dst_id = atoi(argv[4]);
+    Overlay_State.dst_port = atoi(argv[5]);
 
     Overlay_State.ctrl_established = 0;
     Overlay_State.data_established = 0;
@@ -250,7 +271,8 @@ main(int argc, char ** argv)
 
     /* Init socket */
     Overlay_State.ctrl_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (Overlay_State.ctrl_sock < 0) {
+    if (Overlay_State.ctrl_sock < 0)
+    {
         Alarm(EXIT, "overlay_client: Failed to create control socket: %s\n", strerror(errno));
     }
 
@@ -258,7 +280,8 @@ main(int argc, char ** argv)
     memset(&overlay_addr, 0, sizeof(struct sockaddr_in));
     Overlay_State.ctrl_addr.sin_family = AF_INET;
     p_h_ent = gethostbyname(overlay_IP);
-    if (p_h_ent == NULL) {
+    if (p_h_ent == NULL)
+    {
         Alarm(EXIT, "Invalid host name: %s\n", strerror(errno));
     }
     memcpy(&h_ent, p_h_ent, sizeof(h_ent));
@@ -270,7 +293,8 @@ main(int argc, char ** argv)
 
     /* Connect to server */
     ret = connect(Overlay_State.ctrl_sock, (struct sockaddr *)&Overlay_State.ctrl_addr, sizeof(struct sockaddr_in));
-    if (ret < 0) {
+    if (ret < 0)
+    {
         Alarm(EXIT, "Failed to connect to overlay: %s\n", strerror(errno));
     }
     Alarm(DEBUG, "Successfully connected!\n");
@@ -278,30 +302,34 @@ main(int argc, char ** argv)
     /* Send request */
     bytes_sent = 0;
     req.port = Overlay_State.data_port;
-    while (bytes_sent < sizeof(req)) {
-        ret = send(Overlay_State.ctrl_sock, ((char*)&req)+bytes_sent, sizeof(req)-bytes_sent, 0);
-        if (ret <= 0) {
+    while (bytes_sent < sizeof(req))
+    {
+        ret = send(Overlay_State.ctrl_sock, ((char *)&req) + bytes_sent, sizeof(req) - bytes_sent, 0);
+        if (ret <= 0)
+        {
             Alarm(EXIT, "Sending initial request to overlay node failed: %s\n", strerror(errno));
         }
         bytes_sent += ret;
         Alarm(DEBUG, "Sent %d / %d bytes\n", ret, sizeof(req));
     }
-    
+
     /* Read response. Blocking recv, since we shouldn't send any data until
      * connection is established */
     bytes_read = 0;
     while (bytes_read < sizeof(resp) &&
-           (ret = recv(Overlay_State.ctrl_sock, ((char *)&resp)+bytes_read,
-                       sizeof(resp)-bytes_read, 0)) > 0)
+           (ret = recv(Overlay_State.ctrl_sock, ((char *)&resp) + bytes_read,
+                       sizeof(resp) - bytes_read, 0)) > 0)
     {
         bytes_read += ret;
     }
-    if (ret <= 0) {
+    if (ret <= 0)
+    {
         Alarm(EXIT, "Recv returned %d; Failed to establish overlay connection: %s\n", ret, strerror(errno));
     }
 
     /* Check whether overlay node accepted or rejected our request */
-    if (resp.id == 0) { /* rejected */
+    if (resp.id == 0)
+    { /* rejected */
         Alarm(EXIT, "Recvd response %d from overlay node. Connection rejected.\n", resp.id);
     }
     Overlay_State.id = resp.id;
@@ -309,7 +337,8 @@ main(int argc, char ** argv)
 
     /* Register control socket */
     ret = E_attach_fd(Overlay_State.ctrl_sock, READ_FD, handle_overlay_ctrl, 0, &Overlay_State, MEDIUM_PRIORITY);
-    if (ret < 0) {
+    if (ret < 0)
+    {
         Alarm(EXIT, "Failed to register control socket in event system\n");
     }
 

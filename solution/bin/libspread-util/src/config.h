@@ -319,7 +319,5 @@
 /* #undef inline */
 #endif
 
-#include "defines.h"
 
 #endif /* _CONFIG_H */
-
